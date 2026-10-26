@@ -1,0 +1,37 @@
+# Private notes and temporary files.
+/temp/
+*.zip
+*.7z
+*.rar
+/.FFXIV-Omega-Sim.*.tmp.exe
+*.assembling
+
+# Complete files restored from tracked parts.
+/_moling_probe/MPTestingCPP/Binaries/Win64/MPTestingCPP.exe
+/_moling_probe/MPTestingCPP/Content/Paks/MPTestingCPP-Windows.ucas
+
+# Runtime programs, resources and shipped defaults are tracked.
+# Keep diagnostics and newly generated runtime output private.
+*.pdb
+*.dmp
+*.log
+*.runtime-xml
+UE4SS_ObjectDump.txt
+/_moling_probe/MPTestingCPP/Saved/Logs/
+/_moling_probe/MPTestingCPP/Saved/Crashes/
+/_moling_probe/MPTestingCPP/Saved/Config/CrashReportClient/
+/_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/UE4SS.log*
+
+# Research materials and credentials.
+research/
+.env
+.env.*
+!.env.example
+
+# Tool caches and editor files.
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

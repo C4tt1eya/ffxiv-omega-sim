@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.ps1 text eol=lf
+# Preserve original runtime bytes, including CRLF/BOM in Lua and configuration.
+/_moling_probe/** -text -whitespace
+/FFXIV-Omega-Sim.exe -text
