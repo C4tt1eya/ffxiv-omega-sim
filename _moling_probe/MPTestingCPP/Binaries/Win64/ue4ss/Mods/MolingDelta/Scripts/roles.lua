@@ -2,12 +2,15 @@
 -- network/team IDs stay stable; the player swaps practice roles with one AI.
 return function(root)
  local FindFirstOf=MolingFindActor
+ local rules=dofile(root..'rules.lua')
  local M={order={'MT','ST','H1','H2','D1','D2','D3','D4'},generation=0}
  local ranks={};for i,r in ipairs(M.order)do ranks[r]=i end
  local selected='D4'
  local saved=io.open(root..'player-role.txt','r')
  if saved then local r=saved:read('*a'):match('%w+');saved:close();if ranks[r]then selected=r end end
  local player,baseRole,hud,originals,roster,lookup
+ local inP5=false
+ local ready=false
  local pending,wasPressed,roleLabel
  local function valid(a)return a and a:IsValid()end
  local function key(a)return a:GetFullName()end
@@ -20,9 +23,44 @@ return function(root)
  function M.role(a)
   if lookup then return lookup[key(a)]end
  end
+ function M.resolve(a)
+  local assigned=M.role(a)
+  local npcRole=a:GetClass():GetFullName():match('NPC_(%w+)_BP_C')
+  local missing,humanCount={},nil
+  if not assigned and not npcRole then
+   local world=a:GetWorld()
+   assert(valid(world),'Player world is unavailable')
+   local worldKey=key(world)
+   humanCount=0
+   for _,person in ipairs(FindAllOf('BP_PlayerCharacter_C') or {}) do
+    if valid(person) then
+     local otherWorld=person:GetWorld()
+     if valid(otherWorld) and key(otherWorld)==worldKey then humanCount=humanCount+1 end
+    end
+   end
+   for _,r in ipairs(M.order)do
+    if not valid(FindFirstOf('NPC_'..r..'_BP_C'))then missing[#missing+1]=r end
+   end
+  end
+  return rules.resolveRole(assigned,npcRole,missing,humanCount)
+ end
  function M.current()return selected end
+ function M.isP5()return inP5 end
+ function M.isReady()return inP5 and ready end
  function M.actors()return roster end
  function M.isBusy()return busy()end
+ -- These overlays include both the P6 controls and their text. The native
+ -- HUD exposes them in P5 too, before the practice roster has been created.
+ function M.hideP6Controls(currentHud)
+  if not valid(currentHud)then return end
+  for _,name in ipairs({'P6crossfire_random','P6crossfire_nei','P6crossfire_wai'})do
+   local button=currentHud[name]
+   if valid(button)then
+    local parent=button:GetParent()
+    if valid(parent)and parent:GetVisibility()~=1 then parent:SetVisibility(1)end
+   end
+  end
+ end
  local function labels()
   if not valid(hud)then return end
   for _,name in ipairs({'一运','P5二运前半img','P5三运前半img'})do if hud[name]:GetVisibility()~=1 then hud[name]:SetVisibility(1)end end
@@ -71,11 +109,14 @@ return function(root)
   M.generation=M.generation+1;labels()
  end
  function M.select(r)
+  if not inP5 then return false,'outside P5'end
   if not ranks[r]then return false,'invalid role'end
   if not roster then return false,'party unavailable'end
+  if not ready then return false,'party setup incomplete'end
+  if _G.MolingPractice and MolingPractice.isStarting() then return false,'mechanic starting'end
   if busy()then return false,'mechanic active'end
   if r==selected then return true end
-  apply(r,true)
+  ready=false;apply(r,true);ready=true
   local f=io.open(root..'player-role.txt','w');if f then f:write(r..'\n');f:close()end
   print('[MolingRoles] Player role='..r..'\n')
   return true
@@ -121,16 +162,24 @@ return function(root)
    button:SetVisibility(0);button.Slot:SetSize({SizeRule=1,Value=1})
   end
   for _,name in ipairs({'P5二运HW','P5三运HW','skill_7','skill_8','skill_9','skill_10','skill_11'})do hud[name]:SetIsEnabled(false)end
+  if _G.MolingPractice then _G.MolingPractice.attachUI(player,hud,label)end
  end
  -- Map restart destroys the old HUD and roster. Drop wrappers without
  -- asking destroyed objects for their names, flags, widgets or properties.
  function M.resetWorld()
+  inP5=false;ready=false
   player=nil;baseRole=nil;hud=nil;originals=nil;roster=nil;lookup=nil
   pending=nil;wasPressed=nil;roleLabel=nil;M.ui=nil
+  if _G.MolingPractice then _G.MolingPractice.resetWorld()end
   M.generation=M.generation+1
  end
  function M.tick()
+  -- Keep the P5 practice UI and shortcuts away from the native P6 HUD.
+  inP5=valid(FindFirstOf('1stController_C'))
+  if _G.MolingPractice then _G.MolingPractice.setScope(inP5)end
+  if not inP5 then pending=nil;ready=false;return end
   local p=FindFirstOf('BP_PlayerCharacter_C');if not valid(p)or not valid(p.PlayerUIRef)then return end
+  M.hideP6Controls(p.PlayerUIRef)
   local changed=not valid(player)or key(player)~=key(p)
   if not changed and roster then for _,a in ipairs(roster)do if not valid(a)then changed=true;break end end end
   if changed or not roster then
@@ -139,11 +188,11 @@ return function(root)
    for _,r in ipairs(M.order)do local a=FindFirstOf('NPC_'..r..'_BP_C');if valid(a)then actors[#actors+1]=a;seen[r]=true end end
    if #actors~=7 then return end
    for _,r in ipairs(M.order)do if not seen[r]then baseRole=r end end
-   player=p;actors[#actors+1]=p;roster=actors;originals={};lookup=nil
+   ready=false;player=p;actors[#actors+1]=p;roster=actors;originals={};lookup=nil
    for _,a in ipairs(actors)do originals[key(a)]={role=a:GetClass():GetFullName():match('NPC_(%w+)_BP_C')or baseRole,name=a.Name:ToString():gsub(' %[%w+%]$','')}end
-   hud=p.PlayerUIRef;attachUI();apply(selected,false)
+   hud=p.PlayerUIRef;attachUI();apply(selected,false);ready=true
   end
-  if key(hud)~=key(p.PlayerUIRef)then hud=p.PlayerUIRef;attachUI();labels()end
+  if key(hud)~=key(p.PlayerUIRef)then ready=false;hud=p.PlayerUIRef;attachUI();labels();ready=true end
   local active=busy();hud.skill_empty:SetIsEnabled(not active)
   local pressed=hud.skill_empty:IsPressed()
   if pressed and not wasPressed then pending=M.order[ranks[selected]%8+1]end
@@ -151,10 +200,11 @@ return function(root)
   if pending then local r=pending;pending=nil;M.select(r)end
   -- Native team-list refresh can rebuild rows. Update names, never health, here.
   labels()
+  if _G.MolingPractice then _G.MolingPractice.tick(p,hud)end
  end
  for i,k in ipairs({'ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT'})do
   local role=M.order[i]
-  RegisterKeyBindAsync(Key[k],{ModifierKey.ALT},function()pending=role end)
+  RegisterKeyBindAsync(Key[k],{ModifierKey.ALT},function()if inP5 then pending=role end end)
  end
  _G.MolingRoles=M
  return M

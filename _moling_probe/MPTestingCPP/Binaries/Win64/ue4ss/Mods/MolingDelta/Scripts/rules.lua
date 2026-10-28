@@ -1,5 +1,15 @@
 -- Pure assignment rules. Internal simulator markers are zero based.
 local M = {}
+-- A missing AI identifies the player only when exactly one role is absent.
+-- Several absent roles require explicit player-to-role mapping from the host;
+-- guessing the first one silently assigns several people the same role.
+function M.resolveRole(assigned, npcRole, missing, humanCount)
+    if assigned then return assigned end
+    if npcRole then return npcRole end
+    assert(humanCount == 1, 'Cannot infer a player role with multiple or unknown players')
+    assert(#missing == 1, 'Cannot infer a player role from an ambiguous AI roster')
+    return missing[1]
+end
 -- Keep the world buffs on their original owners. If both were randomized
 -- onto the same blue tether, exchange near world with the idle slot on the
 -- same side of the arena. The caller must update BOTH real tethers and AI.
@@ -33,13 +43,19 @@ function M.assign(red, blue, role, world, d3, idleMarks)
     if role(inner[1]) == d3 or role(inner[2]) == d3 then inner, outer = outer, inner end
     local a = {attack = {inner[1], inner[2], outer[1], outer[2]}, idle = {}, marks = {}}
     for i, actor in ipairs(a.attack) do a.marks[#a.marks+1] = {actor, i-1} end
-    for _, actor in ipairs(blue) do
+    local farIndex,nearIndex
+    for i, actor in ipairs(blue) do
         local hw = world(actor)
-        if hw == 1 then assert(not a.far, 'Duplicate distant world'); a.far = actor
-        elseif hw == 2 then assert(not a.near, 'Duplicate near world'); a.near = actor
+        if hw == 1 then assert(not a.far, 'Duplicate distant world'); a.far = actor;farIndex=i
+        elseif hw == 2 then assert(not a.near, 'Duplicate near world'); a.near = actor;nearIndex=i
         else a.idle[#a.idle+1] = actor end
     end
     assert(a.far and a.near and #a.idle == 2, 'Incomplete world assignment')
+    -- Real native tethers join 1/3 and 2/4. Stop 1 belongs to bind 1's
+    -- partner; stop 2 to bind 2's partner, independent of array encounter order.
+    local function partner(i)return blue[i<=2 and i+2 or i-2]end
+    a.idle={partner(farIndex),partner(nearIndex)}
+    assert(world(a.idle[1])==0 and world(a.idle[2])==0,'World owners share a blue tether')
     a.marks[#a.marks+1] = {a.far, 5}
     a.marks[#a.marks+1] = {a.near, 6}
     for i, actor in ipairs(a.idle) do a.marks[#a.marks+1] = {actor, idleMarks and (7+i) or -1} end
