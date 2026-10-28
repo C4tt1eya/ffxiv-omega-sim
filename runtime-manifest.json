@@ -293,8 +293,8 @@
                   {
                       "archive_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/config.lua",
                       "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/config.lua",
-                      "size":  348,
-                      "sha256":  "96c0a05a6d099b85609d294a46570820db272db8344fa800f4c9c13b63b1fdc1",
+                      "size":  173,
+                      "sha256":  "636c9c0b98b10329c585596ea468e197a0ed8d3a46af2f1ef0d6b04384ee3f75",
                       "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/config.lua"
                   },
                   {
@@ -307,8 +307,8 @@
                   {
                       "archive_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/main.lua",
                       "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/main.lua",
-                      "size":  14440,
-                      "sha256":  "10945d9c5b050cbc0bd8eda5d2c2074b00da336b91ae8fd11b9b73f3080320e8",
+                      "size":  23095,
+                      "sha256":  "1106ed286d46dac5ffc01e1d8201ea7dac297a5e9e657bc03052138a1e6ce7ed",
                       "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/main.lua"
                   },
                   {
@@ -321,8 +321,8 @@
                   {
                       "archive_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/omega/main.lua",
                       "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/omega/main.lua",
-                      "size":  13973,
-                      "sha256":  "e7f38af8ecd343941357b3a4c20d54973df86c8e498fbfef395369411f621fb2",
+                      "size":  13767,
+                      "sha256":  "7fff362c0eb033259b58aeaa1d12e6c3de86010077a7b31a159bc27a24c03872",
                       "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/omega/main.lua"
                   },
                   {
@@ -374,24 +374,36 @@
                       "sha256":  "c2d52debce0a235690bc81765f8404a3aa75498de3ab3be3cd899a7203522fc7"
                   },
                   {
+                      "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/practice.lua",
+                      "size":  19417,
+                      "sha256":  "8b3cf2cabcc41f080f2a2cb4f40a0ccd54d25342421351363f2e39af1b4432a3",
+                      "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/practice.lua"
+                  },
+                  {
+                      "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/practice_rules.lua",
+                      "size":  6043,
+                      "sha256":  "533cf0bfd1d933398b17fc5374327b1543ff30b9e994fc9adf3ca715f841cd17",
+                      "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/practice_rules.lua"
+                  },
+                  {
                       "archive_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/roles.lua",
                       "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/roles.lua",
-                      "size":  8459,
-                      "sha256":  "8cde81b107b6647e4d4b7e6a962127d96b3a26cb73e97ac80400a3e74f1d9bd1",
+                      "size":  10713,
+                      "sha256":  "659afb91e4749ed8b29d0a9438e7e763ce50cca85cd58580886d4227f17bb998",
                       "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/roles.lua"
                   },
                   {
                       "archive_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/rules.lua",
                       "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/rules.lua",
-                      "size":  6825,
-                      "sha256":  "f27d64e217d401eadb05aac987e49fa9a9f953549521c8978ce3cd603c338dae",
+                      "size":  7809,
+                      "sha256":  "398a6c4ce8593cc59288c1d6bdf32de5553eae30fa7a8a91e06423c392d59686",
                       "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/rules.lua"
                   },
                   {
                       "archive_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/sigma.lua",
                       "runtime_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/sigma.lua",
-                      "size":  13713,
-                      "sha256":  "6dc7d07b315bb4874adb6803a0581576a866cce7f7201ae60eab47226bff229d",
+                      "size":  15355,
+                      "sha256":  "b420beaf3645d55a690a2232c4ea1975f8edfbbe80aa26f74a799351aede9000",
                       "repository_path":  "_moling_probe/MPTestingCPP/Binaries/Win64/ue4ss/Mods/MolingDelta/Scripts/sigma.lua"
                   },
                   {

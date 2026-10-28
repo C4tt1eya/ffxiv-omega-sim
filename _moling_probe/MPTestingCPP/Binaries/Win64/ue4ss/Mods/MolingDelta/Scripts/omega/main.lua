@@ -13,10 +13,7 @@ local function key(a)return a:GetFullName()end
 local function arr(a)local t={};a:ForEach(function(i,w)t[i]=w:get()end);return t end
 local function put(a,t)assert(a:GetArrayNum()==#t,'Unexpected native array length');for i,v in ipairs(t)do a[i]=v end end
 local function role(a)
- local chosen=_G.MolingRoles and MolingRoles.role(a);if chosen then return chosen end
- local r=a:GetClass():GetFullName():match('NPC_(%w+)_BP_C');if r then return r end
- for _,v in ipairs(R.order)do if not valid(FindFirstOf('NPC_'..v..'_BP_C'))then return v end end
- error('Missing player role')
+ return assert(_G.MolingRoles,'Role resolver unavailable').resolve(a)
 end
 local function move(a,v)if a:GetClass():GetFullName():find('/AI/',1,true)then a['移动'](a,v)end end
 local arena=R.frame({X=0,Y=0,Z=120},{X=0,Y=-1})
@@ -232,7 +229,8 @@ local function ui()
  for _,field in ipairs({'P5三运HWimg','P51st_plan','P52nd_plan','P53rd_plan','P53rd_plan2','dance'})do
   local w=hud[field];if valid(w)then w:SetVisibility(1)end
  end
- for _,field in ipairs({'P5三运HW','skill_7','skill_8','skill_9','skill_10','skill_11'})do
+ -- Practice owns the five reused buttons, including their enabled state.
+ for _,field in ipairs({'P5三运HW'})do
   local w=hud[field];if valid(w)then w:SetVisibility(0);w:SetIsEnabled(false)end
  end
  for _,field in ipairs({'mark_attack','Mark_suolian','mark_stop','Mark_clear'})do

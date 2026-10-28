@@ -2,6 +2,9 @@
 return function(root,config)
  local FindFirstOf=MolingFindActor
  local R=dofile(root..'sigma_rules.lua')
+ local P=dofile(root..'practice_rules.lua')
+ local practice=assert(_G.MolingPractice)
+ local function choice(stage)local value=practice.choice(stage);return value=='random'and P.random or value end
  local f=io.open(root..'../sigma.log','w')
  local function note(s)print('[MolingSigma] '..s..'\n');if f then f:write(s..'\n');f:flush()end end
  local function valid(a)return a and a:IsValid()end
@@ -9,15 +12,14 @@ return function(root,config)
  local function arr(a)local t={};a:ForEach(function(i,w)t[i]=w:get()end);return t end
  local function put(a,t)assert(a:GetArrayNum()==#t,'Unexpected Sigma array size');for i,v in ipairs(t)do a[i]=v end end
  local function role(a)
-  local chosen=_G.MolingRoles and MolingRoles.role(a);if chosen then return chosen end
-  local r=a:GetClass():GetFullName():match('NPC_(%w+)_BP_C');if r then return r end
-  for _,r2 in ipairs(R.order)do if not valid(FindFirstOf('NPC_'..r2..'_BP_C'))then return r2 end end
-  error('Cannot determine local player role')
+  return assert(_G.MolingRoles,'Role resolver unavailable').resolve(a)
  end
  local function move(a,v)if a:GetClass():GetFullName():find('/AI/',1,true)then a['移动'](a,v)end end
  local function actors(slots)local t={};for i,m in ipairs(slots)do t[i]=m.actor end;return t end
  local function marked(plan)for id,m in pairs(plan.byMark)do if m.actor.MarkIndex~=id then m.actor:Server_SetMark(id)end end end
  local c,p,gs,s;local id=0;local previousEnergy,lastDelta;local roleGeneration=-1
+ local frontTargetClasses={'LianxianDM_BP_C','shanxingDM_BP_C','shanxingdmgBP_C'}
+ local retiredTargets={}
  local function releaseFarTowers()
   if not s or not s.farTowerLines then return end
   for _,entry in ipairs(s.farTowerLines)do
@@ -103,7 +105,9 @@ return function(root,config)
   local worlds=shuffled();worlds[1].world=1;worlds[2].world=2
   for i,m in ipairs(shuffled())do m.energy=previousEnergy and previousEnergy[m.role]or(i<=6 and 1 or 0)end
   previousEnergy=nil
-  id=id+1;s={id=id,start=gs:GetTimeSeconds(c),phase='front',members=members,yaw=c.RotationTemp.Yaw,near=c.isNear,targets={},oldTowers={}}
+  local hw=P.hw(R,members,MolingRoles.current(),choice('sigma_hw'))
+  members=hw.members
+  id=id+1;s={id=id,start=gs:GetTimeSeconds(c),phase='front',members=members,hwPlan=hw.assignment,frontChoice=choice('sigma_front'),yaw=c.RotationTemp.Yaw,near=c.isNear,targets={},oldTowers={}}
   for _,cl in ipairs({'Tower_1_BP_C','Tower_2_BP_C'})do for _,a in ipairs(FindAllOf(cl)or{})do if valid(a)then s.oldTowers[key(a)]=true end end end
   -- Native Sony order is O X triangle square (verified SlateBrush assets).
   local priority={};for i,r in ipairs(R.order)do priority[r]=i end
@@ -117,7 +121,32 @@ return function(root,config)
   if t>=10 and not s.assignment then
    local n=0;for _,m in ipairs(s.members)do m.laser=m.actor.isLined;if m.laser then n=n+1 end end
    if n~=6 then return end
-   s.assignment=R.front(s.members);s.spread=R.spread(s.near,s.yaw)
+   local chosen=P.front(R,s.members,MolingRoles.current(),s.frontChoice)
+   if chosen.swap then
+    local from,to=chosen.swap.from.actor,chosen.swap.to.actor
+    local fromKey,toKey=key(from),key(to)
+    local function mapped(actor)
+     if not valid(actor)then return actor end
+     local k=key(actor);return k==fromKey and to or(k==toKey and from or actor)
+    end
+    -- Sony pairing and laser ownership move with the selected mechanic slot.
+    -- Update live tethers as well as the native roster used by later towers.
+    for _,class in ipairs({'NearLine_BP_C','FarLine_BP_C'})do
+     for _,line in ipairs(FindAllOf(class)or{})do
+      if valid(line)and valid(line.Target_start)and valid(line.Target_end)and line.SplineMesh:IsVisible()then
+       line.Target_start=mapped(line.Target_start);line.Target_end=mapped(line.Target_end)
+      end
+     end
+    end
+    for _,class in ipairs(frontTargetClasses)do
+     for _,actor in ipairs(FindAllOf(class)or{})do
+      if valid(actor)and not retiredTargets[key(actor)]then actor.Target=mapped(actor.Target)end
+     end
+    end
+    for _,m in ipairs(chosen.members)do m.actor.isLined=m.laser end
+   end
+   s.members=chosen.members;s.hwPlan=P.rebind(s.hwPlan,s.members)
+   s.assignment=chosen.assignment;s.spread=R.spread(s.near,s.yaw)
    put(c.TeammatesRef,actors(s.assignment.slots));marked(s.assignment)
    note('FRONT '..stamp(s.assignment))
   end
@@ -156,7 +185,7 @@ return function(root,config)
  end
  local function startHW()
   releaseFarTowers()
-  local hwAssignment=R.hw(s.members)
+  local hwAssignment=P.rebind(s.hwPlan,s.members)
   s.phase='hw';s.hwStart=gs:GetTimeSeconds(c);s.targets={}
   -- Invoke the native mechanic, then replace its practice-only random setup in
   -- this same game-thread callback, before rendering or any delayed mechanic.
@@ -219,6 +248,9 @@ return function(root,config)
  local function cleanup()
   if not s then return end
   releaseFarTowers()
+  for _,class in ipairs(frontTargetClasses)do
+   for _,actor in ipairs(FindAllOf(class)or{})do if valid(actor)then retiredTargets[key(actor)]=true end end
+  end
   for _,m in ipairs(s.members)do if valid(m.actor)then m.actor:ClearMark();m.actor.UMG_Marking:SetHiddenInGame(false,true)end end
   note('END run='..s.id);s=nil
  end
@@ -249,7 +281,7 @@ return function(root,config)
  end
  note('LOADED v0.9 Sigma; tower-only far distance tolerance; native tower damage')
  RegisterInitGameStatePreHook(function()
-  s=nil;c=nil;p=nil;gs=nil;previousEnergy=nil;lastDelta=nil
+  s=nil;c=nil;p=nil;gs=nil;previousEnergy=nil;lastDelta=nil;retiredTargets={}
  end)
  _G.MolingSigma={getState=function()return s end,rules=R}
  return tick

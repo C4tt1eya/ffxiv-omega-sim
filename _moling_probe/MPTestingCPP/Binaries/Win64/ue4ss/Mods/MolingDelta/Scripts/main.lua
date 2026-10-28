@@ -12,8 +12,11 @@ local FindFirstOf=MolingFindActor
 local config = dofile(root .. 'config.lua')
 local rules = dofile(root .. 'rules.lua')
 if not config.enabled then return end
+local practice=dofile(root .. 'practice.lua')(root)
+local practiceRules=dofile(root .. 'practice_rules.lua')
 local roles=dofile(root .. 'roles.lua')(root)
 local state, controller, clock
+local resetPending,queuedStart
 local retiredBlue={}
 local log = io.open(root .. '../delta.log', 'w')
 local function note(s)
@@ -32,14 +35,7 @@ local function setArray(a, values)
     for i,v in ipairs(values) do a[i]=v end
 end
 local function role(a)
-    local chosen=roles.role(a);if chosen then return chosen end
-    local r=a:GetClass():GetFullName():match('NPC_(%w+)_BP_C')
-    if r then return r end
-    -- The local player occupies whichever NPC slot is absent.
-    for _,r2 in ipairs({'MT','ST','H1','H2','D1','D2','D3','D4'}) do
-        if not valid(FindFirstOf('NPC_'..r2..'_BP_C')) then return r2 end
-    end
-    return a.Name:ToString()
+    return roles.resolve(a)
 end
 local function move(a, destination)
     if a:GetClass():GetFullName():find('/AI/',1,true) then a['移动'](a,destination) end
@@ -51,8 +47,10 @@ local function cleanup()
     if not state then return end
     -- Native reset hides the completed line actors but keeps them alive.
     -- Remember their identities so the next pull cannot select stale lines.
-    for _,line in ipairs(FindAllOf('WnBLine_BP_C') or {}) do
-        if valid(line) then retiredBlue[key(line)]=true end
+    for _,class in ipairs({'WnBLine_BP_C','RnGLine_BP_C'}) do
+        for _,line in ipairs(FindAllOf(class) or {}) do
+            if valid(line) then retiredBlue[key(line)]=true end
+        end
     end
     -- Native end/reset already restores its unrotated coordinate templates.
     -- Writing this run's rotated snapshots back here corrupts the next pull's
@@ -64,6 +62,40 @@ local function cleanup()
     state=nil
 end
 local runId=0
+local function selected(stage)
+    local value=practice.choice(stage)
+    return value=='random' and practiceRules.random or value
+end
+local function transferDelta(plan)
+    if not plan.swap then return end
+    local from,to=plan.swap.from,plan.swap.to
+    local fromKey,toKey=key(from),key(to)
+    local function mapped(actor)
+        if not valid(actor) then return actor end
+        local k=key(actor)
+        return k==fromKey and to or (k==toKey and from or actor)
+    end
+    local roster=array(controller.TeammatesRef)
+    for i,actor in ipairs(roster) do roster[i]=mapped(actor) end
+    setArray(controller.TeammatesRef,roster)
+    setArray(controller.TeammatesRef_temp_R,plan.red)
+    setArray(controller.TeammatesRef_temp_B,plan.blue)
+    for _,class in ipairs({'WnBLine_BP_C','RnGLine_BP_C'}) do
+        for _,line in ipairs(FindAllOf(class) or {}) do
+            if valid(line) and not retiredBlue[key(line)] then
+                line.Target_start=mapped(line.Target_start)
+                line.Target_end=mapped(line.Target_end)
+            end
+        end
+    end
+    for _,entry in ipairs(plan.worlds) do
+        local actor=entry.actor
+        actor:RemoveBUFF(0);actor:RemoveBUFF(1)
+        actor.HelloWorld=entry.world
+        if entry.world>0 then actor:GetBUFF(40,entry.world-1) end
+    end
+    note('CHOICE delta='..practice.choice('delta')..' player='..roles.current())
+end
 local function prepareBlue(blue)
     local slots,plan=rules.blueSlots(blue,function(o)return o.HelloWorld end)
     local indices={};for i,a in ipairs(blue) do indices[key(a)]=i end
@@ -105,7 +137,12 @@ local function begin()
     local blueRepaired
     blue,blueRepaired=prepareBlue(blue)
     if not blue then return end
-    local a=rules.assign(red,blue,role,function(o)return o.HelloWorld end,config.d3_role,config.mark_idle_with_stop)
+    local plan=practiceRules.delta(rules,red,blue,roles.current(),selected('delta'),role,function(o)return o.HelloWorld end,config.d3_role)
+    transferDelta(plan)
+    local a=plan.assignment
+    if not practice.idleMarks() then
+        for _,m in ipairs(a.marks) do if m[2]==8 or m[2]==9 then m[2]=-1 end end
+    end
     local seen={}
     for _,m in ipairs(a.marks) do assert(not seen[key(m[1])], 'Duplicate party member');seen[key(m[1])]=true end
     local front={};controller.Positions_line_R:ForEach(function(i,w) front[i]=vec(w:get()) end)
@@ -247,7 +284,7 @@ local function tick()
     end
     if t>65 then cleanup() end
 end
-note('LOADED v0.10; Delta arm green-tether spacing + restart safety; idle stop markers='..tostring(config.mark_idle_with_stop))
+note('LOADED; P5 practice selection and reset')
 -- Exposed only for the local verification harness; no player movement in normal use.
 _G.MolingDelta={getState=function() return state end, rules=rules}
 local sigmaTick=function()end
@@ -258,11 +295,132 @@ assert(loadfile(root .. 'omega/main.lua'))(root .. 'omega/')
 RegisterInitGameStatePreHook(function()
     state=nil;controller=nil;clock=nil;retiredBlue={}
     roles.resetWorld()
+    queuedStart=nil
+    if resetPending then resetPending.ready=true;resetPending.readyAt=os.time() end
 end)
+local phaseHandlers={
+    delta={'1stController_C','BndEvt__PlayerHUD_Skill_2_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature'},
+    sigma={'2ndController_C','BndEvt__PlayerHUD_Skill_3_K2Node_ComponentBoundEvent_6_OnButtonClickedEvent__DelegateSignature'},
+    omega={'3rdController_C','BndEvt__PlayerHUD_Skill_4_K2Node_ComponentBoundEvent_7_OnButtonClickedEvent__DelegateSignature'},
+}
+local function inP5()
+    return valid(FindFirstOf('1stController_C')) and valid(FindFirstOf('2ndController_C'))
+end
+local function startPractice(phase)
+    local handler=assert(phaseHandlers[phase], 'Invalid practice phase')
+    local player=FindFirstOf('BP_PlayerCharacter_C')
+    local mechanic=FindFirstOf(handler[1])
+    local party=roles.actors()
+    assert(inP5() and valid(player) and valid(player.PlayerUIRef) and valid(mechanic),'P5 practice arena is unavailable')
+    assert(party and #party==8,'Practice party is unavailable')
+    assert(roles.isReady() and roles.role(player)==roles.current(),'Practice party role setup is not ready')
+    assert(not roles.isBusy(),'A mechanic is already active')
+    assert(valid(mechanic.PlayerRef) and key(mechanic.PlayerRef)==key(player),'Native controller has not finished initializing')
+    -- Execute the original HUD event so it also performs the native player,
+    -- controller and UI setup. The source button is no longer in the bar.
+    local hud=player.PlayerUIRef
+    hud[handler[2]](hud)
+    if not mechanic.IsActive then
+        -- The HUD event sets this flag before broadcasting to the native
+        -- controller. Do not leave the next manual attempt permanently blocked.
+        if not roles.isBusy() then player.isCampActive=false end
+        error('Native practice did not start')
+    end
+    assert(player.isCampActive,'Native practice did not activate the player')
+    practice.markStarted(phase)
+    note('START phase='..phase)
+end
+local function resetPractice(mode)
+    local player=FindFirstOf('BP_PlayerCharacter_C')
+    if not inP5() or not valid(player) then return end
+    local gameplay=StaticFindObject('/Script/Engine.Default__GameplayStatics')
+    local level=gameplay:GetCurrentLevelName(player,true):ToString()
+    local party=roles.actors()
+    local resume
+    if mode=='restart' then resume=roles.isBusy() and practice.lastPhase() or practice.selectedPhase() end
+    -- A native wipe can reload the map and remove the AI before the user
+    -- presses F5. A recorded run started with eight actors, so restore them
+    -- for a restart even when the current post-wipe roster is empty.
+    resetPending={party=(party and #party==8) or resume~=nil,started=os.time(),level=level,resume=resume}
+    note('RESET level='..level)
+    -- Map travel cancels all native latent timers, damage actors and AI tasks.
+    -- InitGameState drops old wrappers while retaining practice preferences.
+    gameplay:OpenLevel(player,FName(level),true,'')
+end
+local function restoreParty()
+    if not resetPending then return end
+    if not resetPending.ready then
+        if os.time()-resetPending.started>30 then
+            note('RESET ERROR timed out waiting for level travel')
+            resetPending=nil;practice.setPanelOpen(true)
+        end
+        return
+    end
+    if not resetPending.party then resetPending=nil;practice.setPanelOpen(true);return end
+    local player=FindFirstOf('BP_PlayerCharacter_C')
+    if not valid(player)or not valid(player.PlayerUIRef)then
+        if os.time()-resetPending.readyAt>30 then
+            note('RESET ERROR timed out waiting for the preparation screen')
+            resetPending=nil;practice.setPanelOpen(true)
+        end
+        return
+    end
+    local gameplay=StaticFindObject('/Script/Engine.Default__GameplayStatics')
+    if not inP5() or gameplay:GetCurrentLevelName(player,true):ToString()~=resetPending.level then
+        resetPending=nil;practice.setPanelOpen(true);return
+    end
+    -- The native Add AI action creates the same seven party slots as the
+    -- preparation screen. Calling it once avoids a second manual setup step.
+    if not resetPending.aiRequested then
+        player.PlayerUIRef['BndEvt__PlayerHUD_Button_AddAI_K2Node_ComponentBoundEvent_21_OnButtonClickedEvent__DelegateSignature'](player.PlayerUIRef)
+        resetPending.aiRequested=true
+    elseif os.time()-resetPending.readyAt>30 and (not roles.actors() or not roles.isReady() or roles.role(player)~=roles.current()) then
+        note('RESET ERROR timed out waiting for the party')
+        resetPending=nil;practice.setPanelOpen(true)
+    end
+end
 local verificationStarted=false
 LoopInGameThreadWithDelay(config.poll_ms,function()
+        local restored,restoreError=pcall(restoreParty)
+        if not restored then resetPending=nil;practice.setPanelOpen(true);note('RESET PARTY ERROR '..tostring(restoreError))end
         local rolesOK,rolesError=pcall(roles.tick)
         if not rolesOK then note('ROLES ERROR '..tostring(rolesError))end
+        local resetMode=practice.consumeReset()
+        local requestedPhase=practice.consumeStart()
+        if resetMode then
+            queuedStart=nil;practice.setStarting(false)
+            if resetPending then return end
+            local ok,err=pcall(resetPractice,resetMode)
+            if not ok then resetPending=nil;practice.setPanelOpen(true);note('RESET ERROR '..tostring(err))end
+            return
+        end
+        local player=FindFirstOf('BP_PlayerCharacter_C')
+        if resetPending and resetPending.ready and resetPending.aiRequested and rolesOK and valid(player) and
+            roles.isReady() and roles.actors() and #roles.actors()==8 and roles.role(player)==roles.current() then
+            local phase=resetPending.resume
+            resetPending=nil
+            if phase then queuedStart={phase=phase,started=os.time()};practice.setStarting(true)
+            else practice.setPanelOpen(true)end
+        elseif not resetPending and requestedPhase then
+            queuedStart={phase=requestedPhase,started=os.time()};practice.setStarting(true)
+        end
+        if queuedStart and not resetPending then
+            if not inP5() then queuedStart=nil;practice.setStarting(false)
+            elseif os.time()-queuedStart.started>30 then
+                queuedStart=nil;practice.setStarting(false);practice.setPanelOpen(true);note('START ERROR timed out waiting for the native controller')
+            elseif valid(player) and rolesOK and roles.isReady() and not roles.isBusy() then
+                local handler=phaseHandlers[queuedStart.phase]
+                local mechanic=handler and FindFirstOf(handler[1])
+                -- PlayerRef is populated by the native controller only after
+                -- its BeginPlay has bound the stage-start delegate. Roster/UI
+                -- initialization can complete more than a second earlier.
+                if valid(mechanic) and valid(mechanic.PlayerRef) and key(mechanic.PlayerRef)==key(player) then
+                    local phase=queuedStart.phase;queuedStart=nil;practice.setStarting(false)
+                    local ok,err=pcall(startPractice,phase)
+                    if not ok then practice.setPanelOpen(true);note('START ERROR '..tostring(err))end
+                end
+            end
+        end
         local sigmaOK,sigmaError=pcall(sigmaTick)
         if not sigmaOK then note('SIGMA ERROR '..tostring(sigmaError)) end
         local ok,err=pcall(tick)
