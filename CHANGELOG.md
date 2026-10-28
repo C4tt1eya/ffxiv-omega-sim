@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.2.0-alpha.1] - 2026-10-28
+
 ### Added
 
 - P5 一运、二运前半及二运后半可分别为操控玩家指定标记或保留随机，选择同步到实际机制、连线和 AI 分工，并在重置后保留。
@@ -36,3 +38,7 @@
 ### Changed
 
 - 将既有 Lua 和配置放在实际运行目录中维护，保留原模拟器机制和攻略适配行为。
+
+[Unreleased]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.2.0-alpha.1...HEAD
+[0.2.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.1.0-alpha.1...v0.2.0-alpha.1
+[0.1.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/releases/tag/v0.1.0-alpha.1
