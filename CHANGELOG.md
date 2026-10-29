@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.3.0-alpha.1] - 2026-10-29
+
 ### Added
 
 - 一运练习可勾选让操控玩家获得小电视半场刀点名，并与蓝线点名配合。
@@ -43,6 +45,7 @@
 
 - 将既有 Lua 和配置放在实际运行目录中维护，保留原模拟器机制和攻略适配行为。
 
-[Unreleased]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.2.0-alpha.1...HEAD
+[Unreleased]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.3.0-alpha.1...HEAD
+[0.3.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.2.0-alpha.1...v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.1.0-alpha.1...v0.2.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/releases/tag/v0.1.0-alpha.1
