@@ -13,6 +13,7 @@ return function(root)
  for _,stage in ipairs(stages)do definitions[stage].marks=rules.choices[stage]end
  local choices={delta='random',sigma_front='random',sigma_hw='random'}
  local showDeltaIdle=true
+ local smallMonitor=false
  local phase='delta'
  local lastPhase,startRequested
  local starting=false
@@ -31,15 +32,17 @@ return function(root)
   return type(value)=='number'and value~=rules.random and rules.valid(stage,value)
  end
  -- Never execute a local settings file. Three stage IDs (-1 means random),
- -- then 0/1 for Delta idle marker visibility. Accept earlier three-line files.
+ -- then 0/1 for Delta idle marks and small-monitor practice. Accept older files.
  local saved=io.open(root..'practice-settings.txt','r')
  if saved then
   local value=saved:read(129)or'';saved:close()
-  local a,b,c,idle=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')
+  local a,b,c,idle,monitor=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')
+  if not a then a,b,c,idle=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')end
   if not a then a,b,c=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')end
   if #value<=128 and a then
    local values={tonumber(a),tonumber(b),tonumber(c)};local visibility=idle and tonumber(idle)or 1
-   local ok=visibility==0 or visibility==1
+   local target=monitor and tonumber(monitor)or 0
+   local ok=(visibility==0 or visibility==1)and(target==0 or target==1)
    for i,stage in ipairs(stages)do
     if values[i]==-1 then values[i]='random'end
     if not accepts(stage,values[i])then ok=false end
@@ -47,6 +50,8 @@ return function(root)
    if ok then
     for i,stage in ipairs(stages)do choices[stage]=values[i]end
     showDeltaIdle=visibility==1
+    smallMonitor=target==1
+    if smallMonitor and type(choices.delta)=='number' and choices.delta<=3 then choices.delta='random'end
    end
   end
  end
@@ -55,6 +60,7 @@ return function(root)
   if not f then print('[MolingPractice] Could not save practice preferences\n');return end
   for _,stage in ipairs(stages)do f:write(tostring(choices[stage]=='random'and -1 or choices[stage])..'\n')end
   f:write(showDeltaIdle and'1\n'or'0\n')
+  f:write(smallMonitor and'1\n'or'0\n')
   f:close()
  end
  function M.choice(stage)return choices[stage]end
@@ -94,9 +100,21 @@ return function(root)
   panelOpen=value;return true
  end
  function M.snapshot()
-  return {delta=choices.delta,sigma_front=choices.sigma_front,sigma_hw=choices.sigma_hw,show_delta_idle=showDeltaIdle}
+  return {delta=choices.delta,sigma_front=choices.sigma_front,sigma_hw=choices.sigma_hw,show_delta_idle=showDeltaIdle,small_monitor=smallMonitor}
  end
  function M.idleMarks()return showDeltaIdle end
+ function M.smallMonitor()return smallMonitor end
+ function M.selectSmallMonitor(value)
+  if not inP5 then return false,'outside P5'end
+  if type(value)~='boolean'then return false,'invalid small monitor setting'end
+  if active()then return false,'mechanic active'end
+  if smallMonitor~=value then
+   smallMonitor=value
+   if value and type(choices.delta)=='number' and choices.delta<=3 then choices.delta='random'end
+   persist()
+  end
+  return true
+ end
  function M.selectIdleMarks(value)
   if not inP5 then return false,'outside P5'end
   if type(value)~='boolean'then return false,'invalid idle marker visibility'end
@@ -108,6 +126,7 @@ return function(root)
   if not inP5 then return false,'outside P5'end
   if not accepts(stage,value)then return false,'invalid practice marker'end
   if active()then return false,'mechanic active'end
+  if stage=='delta' and smallMonitor and type(value)=='number' and value<=3 then return false,'small monitor requires a blue tether'end
   if choices[stage]~=value then choices[stage]=value;persist()end
   return true
  end
@@ -237,6 +256,7 @@ return function(root)
   add('choice_sigma_front','前半点名',-195,192,475,42,function()picker=picker=='sigma_front'and nil or'sigma_front'end)
   add('choice_sigma_hw','后半点名',-195,245,475,42,function()picker=picker=='sigma_hw'and nil or'sigma_hw'end)
   add('idle','一运禁标',-195,245,475,42,function()M.selectIdleMarks(not showDeltaIdle)end)
+  add('small_monitor','小电视点名',-195,298,475,42,function()M.selectSmallMonitor(not smallMonitor)end)
   add('picker_heading','请选择',-195,245,350,38,nil)
   add('picker_back','返回',185,245,95,38,function()picker=nil end)
   for i,value in ipairs(roleOrder)do
@@ -305,11 +325,12 @@ return function(root)
    local tone=(id=='start'and'primary')or((id=='summary'or id=='header'or id=='help'or id=='picker_heading')and'muted')or'neutral'
    for _,value in ipairs({'delta','sigma','omega'})do if id=='phase_'..value and phase==value then tone='selected'end end
    if id=='role_'..role then tone='selected'end
+   if id=='small_monitor'and smallMonitor then tone='selected'end
    for _,stage in ipairs(stages)do if id==stage..'_'..tostring(choices[stage])then tone='selected'end end
    tint(id,tone)
   end
   local summary='P5 '..phaseNames[phase]..'  ·  '..role
-  if phase=='delta'then summary=summary..'  ·  点名：'..choiceName(choices.delta)
+  if phase=='delta'then summary=summary..'  ·  '..choiceName(choices.delta)..(smallMonitor and'  ·  小电视'or'')
   elseif phase=='sigma'then summary=summary..'  ·  前：'..choiceName(choices.sigma_front)..'  后：'..choiceName(choices.sigma_hw)end
   caption('summary',summary);show('summary',true,false)
   caption('open',panelOpen and'收起'or'设置');show('open',true,true);show('restart',true,true)
@@ -331,7 +352,9 @@ return function(root)
   end
   caption('idle','一运禁止1/2标记：'..(showDeltaIdle and'开启'or'关闭'))
   show('idle',panelOpen and phase=='delta'and not picker,not busy)
-  local heading=picker=='role'and'选择职能：坦克 / 治疗 / 输出'or(picker and('选择'..definitions[picker].title..'点名')or'')
+  caption('small_monitor',(smallMonitor and'[✓] 'or'[ ] ')..'自己获得小电视点名')
+  show('small_monitor',panelOpen and phase=='delta'and not picker,not busy)
+  local heading=picker=='role'and'选择职能：坦克 / 治疗 / 输出'or(picker=='delta'and smallMonitor and'小电视只可搭配蓝线点名'or(picker and('选择'..definitions[picker].title..'点名')or''))
   caption('picker_heading',heading);show('picker_heading',panelOpen and picker~=nil,false)
   show('picker_back',panelOpen and picker~=nil,not busy)
   for _,r in ipairs(roleOrder)do
@@ -343,10 +366,11 @@ return function(root)
    for _,value in ipairs(options)do
     local id=stage..'_'..tostring(value)
     caption(id,(choices[stage]==value and'✓ 'or'')..choiceName(value))
-    show(id,panelOpen and picker==stage,not busy)
+    local compatible=not(stage=='delta'and smallMonitor and type(value)=='number'and value<=3)
+    show(id,panelOpen and picker==stage,not busy and compatible)
    end
   end
-  local help=phase=='delta'and'禁止1/2分别对应锁链1/2的连线伙伴' or(phase=='sigma'and'前半结束后自动进入后半；两段点名独立' or'三运保留现有练习功能')
+  local help=phase=='delta'and(smallMonitor and'小电视限定蓝线；随机点名会从蓝线中选择'or'禁止1/2分别对应锁链1/2的连线伙伴') or(phase=='sigma'and'前半结束后自动进入后半；两段点名独立' or'三运保留现有练习功能')
   if starting then help='正在等待练习启动；可重置或返回准备'
   elseif busy then help='机制进行中，请重置后更改设置'end
   caption('help',help);show('help',panelOpen and not picker,false)
