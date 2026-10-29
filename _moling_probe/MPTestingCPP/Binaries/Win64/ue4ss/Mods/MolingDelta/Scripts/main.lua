@@ -137,7 +137,19 @@ local function begin()
     local blueRepaired
     blue,blueRepaired=prepareBlue(blue)
     if not blue then return end
-    local plan=practiceRules.delta(rules,red,blue,roles.current(),selected('delta'),role,function(o)return o.HelloWorld end,config.d3_role)
+    local choice=selected('delta')
+    if practice.smallMonitor() and choice==practiceRules.random then
+        -- The native small monitor can only target a blue-tether player.
+        -- Keep the player's random blue slot if already there; otherwise choose
+        -- one of the four blue slots and transfer its full mechanic assignment.
+        local playerOnBlue=false
+        for _,actor in ipairs(blue) do if role(actor)==roles.current() then playerOnBlue=true;break end end
+        if not playerOnBlue then
+            local blueMarks={5,6,8,9}
+            choice=blueMarks[math.random(#blueMarks)]
+        end
+    end
+    local plan=practiceRules.delta(rules,red,blue,roles.current(),choice,role,function(o)return o.HelloWorld end,config.d3_role)
     transferDelta(plan)
     local a=plan.assignment
     if not practice.idleMarks() then
@@ -150,9 +162,13 @@ local function begin()
     local function midpoint(u,v)return {X=(u.X+v.X)/2,Y=(u.Y+v.Y)/2,Z=u.Z}end
     local right,left=midpoint(front[1],front[2]),midpoint(front[3],front[4])
     runId=runId+1
+    local previousMonitors={}
+    for _,monitor in ipairs(FindAllOf('MonitorBP_C') or {}) do
+        if valid(monitor) then previousMonitors[key(monitor)]=true end
+    end
     state={id=runId, start=clock:GetTimeSeconds(controller), assignment=a, front=front,
         oldStack=oldStack,stack={right,right,left,left},blueRepaired=blueRepaired,
-        player=FindFirstOf('BP_PlayerCharacter_C')}
+        player=FindFirstOf('BP_PlayerCharacter_C'),smallMonitor=practice.smallMonitor(),previousMonitors=previousMonitors}
     setArray(controller.TeammatesRef_temp_R,rules.redSlots(a,false))
     -- Keep linked 1/2 inside and linked 3/4 outside on BOTH sides.
     setArray(controller.Positions_line_R,{front[2],front[1],front[3],front[4]})
@@ -218,6 +234,23 @@ local function tick()
             setArray(controller.Positions_laser_R,targets)
             note('ARMS run='..state.id..'; attack12 inner, attack34 outer; green-spacing='..tostring(adjusted))
         end
+    end
+    if state.smallMonitor and t>=19 and t<25 and not state.smallMonitorAssigned and valid(state.player) and valid(controller.MonitorRef) then
+        -- Both the controller and the spawned damage actor retain the native
+        -- target. Change both while the actor is live, before the hit occurs.
+        for _,monitor in ipairs(FindAllOf('MonitorBP_C') or {}) do
+            if valid(monitor) and not state.previousMonitors[key(monitor)] and valid(monitor.Target) and key(monitor.Target)==key(controller.MonitorRef) then
+                local original=role(controller.MonitorRef)
+                monitor.Target=state.player
+                controller.MonitorRef=state.player
+                state.smallMonitorAssigned=true
+                note('SMALL MONITOR run='..state.id..' original='..original..' target='..role(state.player))
+                break
+            end
+        end
+    end
+    if state.smallMonitor and t>=25 and not state.smallMonitorAssigned and not state.smallMonitorError then
+        state.smallMonitorError=true;note('SMALL MONITOR ERROR: native target was not available')
     end
     if t>=25 and t<26 and not state.monitor then
         -- The native 26 s return still indexes the old outer/inner order.
