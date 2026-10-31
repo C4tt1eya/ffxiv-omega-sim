@@ -372,7 +372,7 @@ local function resetPractice(mode)
     local resume
     if mode=='restart' then resume=roles.isBusy() and practice.lastPhase() or practice.selectedPhase() end
     -- A native wipe can reload the map and remove the AI before the user
-    -- presses F5. A recorded run started with eight actors, so restore them
+    -- restarts the practice. A recorded run started with eight actors, so restore them
     -- for a restart even when the current post-wipe roster is empty.
     resetPending={party=(party and #party==8) or resume~=nil,started=os.time(),level=level,resume=resume}
     note('RESET level='..level)
