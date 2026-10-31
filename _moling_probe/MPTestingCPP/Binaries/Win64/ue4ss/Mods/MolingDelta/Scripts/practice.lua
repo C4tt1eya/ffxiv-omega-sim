@@ -14,6 +14,8 @@ return function(root)
  local choices={delta='random',sigma_front='random',sigma_hw='random'}
  local showDeltaIdle=true
  local smallMonitor=false
+ local sigmaLine='random'
+ local notice
  local phase='delta'
  local lastPhase,startRequested
  local starting=false
@@ -32,17 +34,19 @@ return function(root)
   return type(value)=='number'and value~=rules.random and rules.valid(stage,value)
  end
  -- Never execute a local settings file. Three stage IDs (-1 means random),
- -- then 0/1 for Delta idle marks and small-monitor practice. Accept older files.
+ -- then Delta toggles and the Sigma line choice. Accept older files.
  local saved=io.open(root..'practice-settings.txt','r')
  if saved then
   local value=saved:read(129)or'';saved:close()
-  local a,b,c,idle,monitor=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')
+  local a,b,c,idle,monitor,line=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')
+  if not a then a,b,c,idle,monitor=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')end
   if not a then a,b,c,idle=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')end
   if not a then a,b,c=value:match('^%s*(-?%d+)%s+(-?%d+)%s+(-?%d+)%s*$')end
   if #value<=128 and a then
    local values={tonumber(a),tonumber(b),tonumber(c)};local visibility=idle and tonumber(idle)or 1
    local target=monitor and tonumber(monitor)or 0
-   local ok=(visibility==0 or visibility==1)and(target==0 or target==1)
+   local lineValue=line and tonumber(line)or -1
+   local ok=(visibility==0 or visibility==1)and(target==0 or target==1)and(lineValue==-1 or lineValue==0 or lineValue==1)
    for i,stage in ipairs(stages)do
     if values[i]==-1 then values[i]='random'end
     if not accepts(stage,values[i])then ok=false end
@@ -51,6 +55,7 @@ return function(root)
     for i,stage in ipairs(stages)do choices[stage]=values[i]end
     showDeltaIdle=visibility==1
     smallMonitor=target==1
+    sigmaLine=lineValue==1 and'near'or(lineValue==0 and'far'or'random')
     if smallMonitor and type(choices.delta)=='number' and choices.delta<=3 then choices.delta='random'end
    end
   end
@@ -61,9 +66,19 @@ return function(root)
   for _,stage in ipairs(stages)do f:write(tostring(choices[stage]=='random'and -1 or choices[stage])..'\n')end
   f:write(showDeltaIdle and'1\n'or'0\n')
   f:write(smallMonitor and'1\n'or'0\n')
+  f:write(sigmaLine=='near'and'1\n'or(sigmaLine=='far'and'0\n'or'-1\n'))
   f:close()
  end
  function M.choice(stage)return choices[stage]end
+ function M.sigmaLine()return sigmaLine end
+ function M.setNotice(value)notice=value end
+ function M.selectSigmaLine(value)
+  if not inP5 then return false,'outside P5'end
+  if value~='random'and value~='near'and value~='far'then return false,'invalid line type'end
+  if active()then return false,'mechanic active'end
+  if sigmaLine~=value then sigmaLine=value;persist()end
+  return true
+ end
  function M.setScope(value)
   inP5=value==true
   if not inP5 then resetRequested=nil;startRequested=nil;starting=false end
@@ -90,7 +105,7 @@ return function(root)
  function M.requestStart()
   if not inP5 then return false,'outside P5'end
   if active()then return false,'mechanic active'end
-  startRequested=phase;return true
+  notice=nil;startRequested=phase;return true
  end
  function M.consumeStart()local result=startRequested;startRequested=nil;return result end
  function M.panelOpen()return panelOpen end
@@ -100,7 +115,7 @@ return function(root)
   panelOpen=value;return true
  end
  function M.snapshot()
-  return {delta=choices.delta,sigma_front=choices.sigma_front,sigma_hw=choices.sigma_hw,show_delta_idle=showDeltaIdle,small_monitor=smallMonitor}
+  return {delta=choices.delta,sigma_front=choices.sigma_front,sigma_hw=choices.sigma_hw,show_delta_idle=showDeltaIdle,small_monitor=smallMonitor,sigma_line=sigmaLine}
  end
  function M.idleMarks()return showDeltaIdle end
  function M.smallMonitor()return smallMonitor end
@@ -261,6 +276,12 @@ return function(root)
   add('choice_sigma_front','',-35,192,315,42,function()picker=picker~='sigma_front'and'sigma_front'or nil end)
   add('label_sigma_hw','后半点名',-195,245,150,42,nil)
   add('choice_sigma_hw','',-35,245,315,42,function()picker=picker~='sigma_hw'and'sigma_hw'or nil end)
+  add('label_sigma_line','连线类型',-195,298,150,42,nil)
+  add('sigma_line','',-35,298,315,42,function()picker=picker~='sigma_line'and'sigma_line'or nil end)
+  for i,value in ipairs({'random','near','far'})do
+   local item=value;local display=({random='随机',near='近线',far='远线'})[item]
+   add('line_'..item,display,-35+(i-1)*106,346,103,40,function()M.selectSigmaLine(item);picker=nil end,15)
+  end
   add('label_idle','禁止1/2标记',-195,245,150,42,nil)
   add('idle','',-35,245,315,42,function()M.selectIdleMarks(not showDeltaIdle)end)
   add('label_small_monitor','小电视点名',-195,298,150,42,nil)
@@ -332,6 +353,7 @@ return function(root)
    for _,value in ipairs({'delta','sigma','omega'})do if id=='phase_'..value and phase==value then tone='selected'end end
    if id=='role_'..role then tone='selected'end
    if id=='small_monitor'and smallMonitor then tone='selected'end
+   if id=='line_'..sigmaLine then tone='selected'end
    for _,stage in ipairs(stages)do if id==stage..'_'..tostring(choices[stage])then tone='selected'end end
    tint(id,tone)
   end
@@ -357,6 +379,11 @@ return function(root)
    caption(id,choiceName(choices[stage]))
    show('label_'..stage,itemVisible,false);show(id,itemVisible,not busy)
   end
+  local lineVisible=panelOpen and phase=='sigma'and(not picker or picker=='sigma_line')
+  show('label_sigma_line',lineVisible,false);caption('sigma_line',({random='随机',near='近线',far='远线'})[sigmaLine]);show('sigma_line',lineVisible,not busy)
+  for _,value in ipairs({'random','near','far'})do
+   local id='line_'..value;caption(id,(sigmaLine==value and'✓ 'or'')..({random='随机',near='近线',far='远线'})[value]);show(id,panelOpen and picker=='sigma_line',not busy)
+  end
   local deltaOptions=panelOpen and phase=='delta'and not picker
   show('label_idle',deltaOptions,false);caption('idle',showDeltaIdle and'开启'or'关闭');show('idle',deltaOptions,not busy)
   show('label_small_monitor',deltaOptions,false);caption('small_monitor',smallMonitor and'自己'or'随机');show('small_monitor',deltaOptions,not busy)
@@ -374,6 +401,7 @@ return function(root)
    end
   end
   local help=phase=='delta'and(smallMonitor and'小电视限定蓝线；随机点名会从蓝线中选择'or'禁止1/2分别对应锁链1/2的连线伙伴') or(phase=='sigma'and'前半结束后自动进入后半；两段点名独立' or'三运保留现有练习功能')
+  if notice and not busy then help=notice end
   if starting then help='正在等待练习启动；可重置或返回准备'
   elseif busy then help='机制进行中，请重置后更改设置'end
   if picker=='delta'and smallMonitor then help='小电视只可搭配蓝线点名'end
