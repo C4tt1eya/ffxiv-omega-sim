@@ -244,24 +244,30 @@ return function(root)
   end
   add('summary','P5 练习',-380,12,385,38,nil,14)
   add('open','设置',15,12,90,38,function()M.setPanelOpen(not panelOpen);picker=nil end)
-  add('restart','重开 F5',115,12,120,38,function()M.requestReset('restart')end)
+  add('restart','重开',115,12,120,38,function()M.requestReset('restart')end)
+  add('prepare','返回准备',245,12,135,38,function()M.requestReset('prepare')end)
   add('header','P5 练习准备',-354,78,590,42,nil,20)
   add('close','关闭',254,78,95,42,function()M.setPanelOpen(false);picker=nil end)
   for i,value in ipairs({'delta','sigma','omega'})do
    local stage=value
    add('phase_'..stage,phaseNames[stage],-354,139+(i-1)*51,130,42,function()M.selectPhase(stage);picker=nil end,17)
   end
-  add('role_select','操控职能',-195,139,385,42,function()picker=picker=='role'and nil or'role'end)
-  add('choice_delta','一运点名',-195,192,475,42,function()picker=picker=='delta'and nil or'delta'end)
-  add('choice_sigma_front','前半点名',-195,192,475,42,function()picker=picker=='sigma_front'and nil or'sigma_front'end)
-  add('choice_sigma_hw','后半点名',-195,245,475,42,function()picker=picker=='sigma_hw'and nil or'sigma_hw'end)
-  add('idle','一运禁标',-195,245,475,42,function()M.selectIdleMarks(not showDeltaIdle)end)
-  add('small_monitor','小电视点名',-195,298,475,42,function()M.selectSmallMonitor(not smallMonitor)end)
-  add('picker_heading','请选择',-195,245,350,38,nil)
-  add('picker_back','返回',185,245,95,38,function()picker=nil end)
+  -- Field names and values occupy separate, consistently sized blocks.
+  add('label_role','操控职能',-195,139,150,42,nil)
+  add('role_select','',-35,139,315,42,function()picker=picker~='role'and'role'or nil end)
+  add('label_delta','点名',-195,192,150,42,nil)
+  add('choice_delta','',-35,192,315,42,function()picker=picker~='delta'and'delta'or nil end)
+  add('label_sigma_front','前半点名',-195,192,150,42,nil)
+  add('choice_sigma_front','',-35,192,315,42,function()picker=picker~='sigma_front'and'sigma_front'or nil end)
+  add('label_sigma_hw','后半点名',-195,245,150,42,nil)
+  add('choice_sigma_hw','',-35,245,315,42,function()picker=picker~='sigma_hw'and'sigma_hw'or nil end)
+  add('label_idle','禁止1/2标记',-195,245,150,42,nil)
+  add('idle','',-35,245,315,42,function()M.selectIdleMarks(not showDeltaIdle)end)
+  add('label_small_monitor','小电视点名',-195,298,150,42,nil)
+  add('small_monitor','',-35,298,315,42,function()M.selectSmallMonitor(not smallMonitor)end)
   for i,value in ipairs(roleOrder)do
    local role=value
-   add('role_'..role,role,-195+((i-1)%4)*120,295+math.floor((i-1)/4)*48,110,40,function()
+   add('role_'..role,role,-35+((i-1)%3)*106,187+math.floor((i-1)/3)*44,103,40,function()
     local roles=_G.MolingRoles;if roles and roles.select then roles.select(role)end;picker=nil
    end,17)
   end
@@ -270,13 +276,13 @@ return function(root)
    for _,id in ipairs(definitions[stage].marks)do options[#options+1]=id end
    for i,value in ipairs(options)do
     local marker=value;local id=selectedStage..'_'..tostring(marker)
-    add(id,choiceName(marker),-195+((i-1)%5)*96,295+math.floor((i-1)/5)*48,88,40,function()
+    local top=selectedStage=='sigma_hw'and 293 or 240
+    add(id,choiceName(marker),-35+((i-1)%3)*106,top+math.floor((i-1)/3)*44,103,40,function()
      M.select(selectedStage,marker);picker=nil
     end,15,marker)
    end
   end
   add('help','',-195,408,475,38,nil,14)
-  add('prepare','返回准备',-195,469,145,42,function()M.requestReset('prepare')end)
   add('start','开始练习',90,469,190,42,function()M.requestStart()end,18)
   M.ui={buttons=buttons,canvas=canvas,backdrop=backdrop,blur=blur,bar=hud.SkillBar1}
   -- The first native skill is intentionally preserved. Keep all twelve
@@ -322,7 +328,7 @@ return function(root)
    if colors[id]~=name then buttons[id]:SetBackgroundColor(palette[name]);colors[id]=name end
   end
   for id in pairs(buttons)do
-   local tone=(id=='start'and'primary')or((id=='summary'or id=='header'or id=='help'or id=='picker_heading')and'muted')or'neutral'
+   local tone=(id=='start'and'primary')or((id=='summary'or id=='header'or id=='help'or id:sub(1,6)=='label_')and'muted')or'neutral'
    for _,value in ipairs({'delta','sigma','omega'})do if id=='phase_'..value and phase==value then tone='selected'end end
    if id=='role_'..role then tone='selected'end
    if id=='small_monitor'and smallMonitor then tone='selected'end
@@ -333,30 +339,27 @@ return function(root)
   if phase=='delta'then summary=summary..'  ·  '..choiceName(choices.delta)..(smallMonitor and'  ·  小电视'or'')
   elseif phase=='sigma'then summary=summary..'  ·  前：'..choiceName(choices.sigma_front)..'  后：'..choiceName(choices.sigma_hw)end
   caption('summary',summary);show('summary',true,false)
-  caption('open',panelOpen and'收起'or'设置');show('open',true,true);show('restart',true,true)
+  caption('open',panelOpen and'收起'or'设置');show('open',true,true);show('restart',true,true);show('prepare',true,true)
   backdrop:SetVisibility(panelOpen and 3 or 1);blur:SetVisibility(panelOpen and 3 or 1)
   caption('header',starting and'正在启动 · 设置只读'or(busy and'练习进行中 · 设置只读'or('P5 '..phaseNames[phase]..' · 练习准备')))
   show('header',panelOpen,false);show('close',panelOpen,true)
   for _,value in ipairs({'delta','sigma','omega'})do
    local id='phase_'..value
-   caption(id,(phase==value and'▶  'or'')..phaseNames[value]);show(id,panelOpen,not busy)
+   caption(id,phaseNames[value]);show(id,panelOpen,not busy)
   end
-  caption('role_select','操控职能：'..role..'  [选择]');show('role_select',panelOpen,not busy)
+  show('label_role',panelOpen,false)
+  caption('role_select',role);show('role_select',panelOpen,not busy)
   for _,stage in ipairs(stages)do
    local id='choice_'..stage
    local onPage=stage=='delta'and phase=='delta'or(stage~='delta'and phase=='sigma')
    -- The chooser occupies the same vertical space as the HW row.
-   local itemVisible=panelOpen and onPage and not picker
-   caption(id,definitions[stage].title..'点名：'..choiceName(choices[stage])..'  [选择]')
-   show(id,itemVisible,not busy)
+   local itemVisible=panelOpen and onPage and (not picker or picker==stage)
+   caption(id,choiceName(choices[stage]))
+   show('label_'..stage,itemVisible,false);show(id,itemVisible,not busy)
   end
-  caption('idle','一运禁止1/2标记：'..(showDeltaIdle and'开启'or'关闭'))
-  show('idle',panelOpen and phase=='delta'and not picker,not busy)
-  caption('small_monitor',(smallMonitor and'[✓] 'or'[ ] ')..'自己获得小电视点名')
-  show('small_monitor',panelOpen and phase=='delta'and not picker,not busy)
-  local heading=picker=='role'and'选择职能：坦克 / 治疗 / 输出'or(picker=='delta'and smallMonitor and'小电视只可搭配蓝线点名'or(picker and('选择'..definitions[picker].title..'点名')or''))
-  caption('picker_heading',heading);show('picker_heading',panelOpen and picker~=nil,false)
-  show('picker_back',panelOpen and picker~=nil,not busy)
+  local deltaOptions=panelOpen and phase=='delta'and not picker
+  show('label_idle',deltaOptions,false);caption('idle',showDeltaIdle and'开启'or'关闭');show('idle',deltaOptions,not busy)
+  show('label_small_monitor',deltaOptions,false);caption('small_monitor',smallMonitor and'自己'or'随机');show('small_monitor',deltaOptions,not busy)
   for _,r in ipairs(roleOrder)do
    local id='role_'..r;caption(id,(role==r and'✓ 'or'')..r)
    show(id,panelOpen and picker=='role',not busy)
@@ -373,8 +376,8 @@ return function(root)
   local help=phase=='delta'and(smallMonitor and'小电视限定蓝线；随机点名会从蓝线中选择'or'禁止1/2分别对应锁链1/2的连线伙伴') or(phase=='sigma'and'前半结束后自动进入后半；两段点名独立' or'三运保留现有练习功能')
   if starting then help='正在等待练习启动；可重置或返回准备'
   elseif busy then help='机制进行中，请重置后更改设置'end
-  caption('help',help);show('help',panelOpen and not picker,false)
-  show('prepare',panelOpen and busy,true)
+  if picker=='delta'and smallMonitor then help='小电视只可搭配蓝线点名'end
+  caption('help',help);show('help',panelOpen and (not picker or picker=='delta'),false)
   caption('start','开始'..phaseNames[phase]);show('start',panelOpen,not busy)
   for id,action in pairs(actions)do
    local down=buttons[id]:IsPressed()
@@ -382,7 +385,6 @@ return function(root)
    pressed[id]=down
   end
  end
- RegisterKeyBindAsync(Key.F5,function()M.requestReset()end)
  _G.MolingPractice=M
  return M
 end
