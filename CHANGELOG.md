@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.0-alpha.1] - 2026-10-31
+
 ### Changed
 
 - 调整 P5 练习面板，将设置名称与选项分开，选项从当前字段下方展开，统一阶段按钮宽度，并将返回准备移至重开旁边；移除 F5 重开快捷键。
@@ -49,7 +51,8 @@
 
 - 将既有 Lua 和配置放在实际运行目录中维护，保留原模拟器机制和攻略适配行为。
 
-[Unreleased]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.3.0-alpha.1...HEAD
+[Unreleased]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.4.0-alpha.1...HEAD
+[0.4.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.3.0-alpha.1...v0.4.0-alpha.1
 [0.3.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.2.0-alpha.1...v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/compare/v0.1.0-alpha.1...v0.2.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/C4tt1eya/ffxiv-omega-sim/releases/tag/v0.1.0-alpha.1
