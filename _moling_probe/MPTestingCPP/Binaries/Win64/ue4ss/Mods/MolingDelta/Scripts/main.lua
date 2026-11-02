@@ -17,6 +17,7 @@ local practiceRules=dofile(root .. 'practice_rules.lua')
 local roles=dofile(root .. 'roles.lua')(root)
 local state, controller, clock
 local resetPending,queuedStart
+local sigmaRetries=0
 local retiredBlue={}
 local log = io.open(root .. '../delta.log', 'w')
 local function note(s)
@@ -361,6 +362,19 @@ local function startPractice(phase)
     end
     assert(player.isCampActive,'Native practice did not activate the player')
     practice.markStarted(phase)
+    local line=practice.sigmaLine()
+    if phase=='sigma' and line~='random' and mechanic.isNear~=(line=='near') then
+        -- Native creates the line actors in the start event itself. Retry by
+        -- reloading the arena so every actor and timer stays internally native.
+        sigmaRetries=sigmaRetries+1
+        note('SIGMA LINE retry='..sigmaRetries..' requested='..line)
+        if sigmaRetries>=12 then
+            sigmaRetries=0;practice.setNotice('未能生成指定连线，请重新开始')
+            practice.requestReset('prepare')
+        else practice.requestReset('restart') end
+        return
+    end
+    sigmaRetries=0
     note('START phase='..phase)
 end
 local function resetPractice(mode)
